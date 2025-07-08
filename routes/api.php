@@ -56,14 +56,22 @@ Route::middleware(['auth:sanctum'])->group(function () {
    // });
 
 //});
-/*
+
 Route::prefix('attachments')->middleware('auth:sanctum')->group(function () {
     Route::get('/', [AttachmentController::class, 'index']);
     Route::post('/', [AttachmentController::class, 'store']);
     Route::get('{attachment}', [AttachmentController::class, 'show']);
     Route::put('{attachment}', [AttachmentController::class, 'update']);
     Route::delete('{attachment}', [AttachmentController::class, 'destroy']);
-});*/
+});
+Route::prefix('comments')->middleware('auth:sanctum')->group(function () {
+    Route::get('/', [CommentController::class, 'index']);
+    Route::post('/', [CommentController::class, 'store']);
+    Route::get('{comment}', [CommentController::class, 'show']);
+    Route::put('{comment}', [CommentController::class, 'update']);
+    Route::delete('{comment}', [CommentController::class, 'destroy']);
+});
+
 
 
 
