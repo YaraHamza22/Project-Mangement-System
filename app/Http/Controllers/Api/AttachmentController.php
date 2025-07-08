@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAttachementRequest;
-use App\Http\Requests\UpdateAttachementRequest;
+use App\Http\Requests\UpdateAttachmentRequest;
 use App\Models\Attachment;
 use App\Models\Project;
 use App\Models\Task;

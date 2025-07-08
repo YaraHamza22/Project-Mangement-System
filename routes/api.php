@@ -1,77 +1,56 @@
 <?php
-
-use App\Http\Controllers\Api\AttachmentController;
-use App\Http\Controllers\AuthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\TeamController;
-use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\TaskController;
+use App\Http\Controllers\Api\TeamController;
+use App\Http\Controllers\Api\CommentController;
+use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\AttachmentController;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+// Authentication Routes with Rate Limiting
+Route::prefix('auth')->group(function () {
+    // 📌 د. Rate Limiting: 5 محاولات لكل دقيقة
+    Route::post('register', [AuthController::class, 'register'])
+        ->middleware('throttle:5,1')
+        ->name('auth.register');
 
+    Route::post('login', [AuthController::class, 'login'])
+        ->middleware('throttle:5,1')
+        ->name('auth.login');
+});
 
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
-
+// Protected Routes (Require Sanctum Authentication)
 Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout']);
- });
 
- Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/projects/{project}/tasks', [TaskController::class, 'index']);
-    Route::get('/projects/{project}/tasks/completed-count', [TaskController::class, 'completedCount']);
-    Route::post('/tasks', [TaskController::class, 'store']);
-    Route::get('/tasks/{task}', [TaskController::class, 'show']);
-    Route::put('/tasks/{task}', [TaskController::class, 'update']);
-    Route::delete('/tasks/{task}', [TaskController::class, 'destroy']);
+    // Logout Route
+    Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
+
+    // Authenticated user
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
+
+    // Teams
+    Route::apiResource('teams', TeamController::class);
+
+    // Projects
+    Route::get('projects/top-active', [ProjectController::class, 'topActiveProjects'])->name('projects.top-active');
+    Route::post('projects/{project}/assign-members', [ProjectController::class, 'assignMembers'])->name('projects.assign-members');
+    Route::apiResource('projects', ProjectController::class);
+
+    // Tasks
+    Route::get('projects/{project}/tasks', [TaskController::class, 'index'])->name('projects.tasks.index');
+    Route::get('projects/{project}/tasks/completed-count', [TaskController::class, 'completedCount'])->name('projects.tasks.completed-count');
+    Route::apiResource('tasks', TaskController::class)->except('index');
+
+    // Comments (no index/show because it's polymorphic)
+    Route::prefix('comments')->name('comments.')->group(function () {
+        Route::post('/', [CommentController::class, 'store'])->name('store');
+        Route::put('{comment}', [CommentController::class, 'update'])->name('update');
+        Route::delete('{comment}', [CommentController::class, 'destroy'])->name('destroy');
+    });
+
+    // Attachments
+    Route::apiResource('attachments', AttachmentController::class);
 });
-
-
-Route::middleware('auth:sanctum')->prefix('teams')->controller(TeamController::class)->group(function(){
-    Route::get('/','index');
-    Route::post('/','store');
-    Route::get('{team}','show');
-    Route::put('{team}','update');
-    Route::delete('{team}','delete');
-});
-
-Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/projects', [ProjectController::class, 'index']);
-    Route::post('/projects', [ProjectController::class, 'store']);
-    Route::get('/projects/{id}', [ProjectController::class, 'show']);
-    Route::put('/projects/{id}', [ProjectController::class, 'update']);
-    Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
-});
-
-
-
-    //انشاء مهام مشروع معين
-    //Route::middleware(['auth:sanctum'])->group(function () {
-    //Route::prefix('projects/{project}/tasks')->name('projects.tasks.')->group(function () {
-       // Route::get('/', [TaskController::class, 'getTasksForProject'])->name('index');
-      ////  Route::post('/', [TaskController::class, 'storeForProject'])->name('store');
-   // });
-
-//});
-
-Route::prefix('attachments')->middleware('auth:sanctum')->group(function () {
-    Route::get('/', [AttachmentController::class, 'index']);
-    Route::post('/', [AttachmentController::class, 'store']);
-    Route::get('{attachment}', [AttachmentController::class, 'show']);
-    Route::put('{attachment}', [AttachmentController::class, 'update']);
-    Route::delete('{attachment}', [AttachmentController::class, 'destroy']);
-});
-Route::prefix('comments')->middleware('auth:sanctum')->group(function () {
-    Route::get('/', [CommentController::class, 'index']);
-    Route::post('/', [CommentController::class, 'store']);
-    Route::get('{comment}', [CommentController::class, 'show']);
-    Route::put('{comment}', [CommentController::class, 'update']);
-    Route::delete('{comment}', [CommentController::class, 'destroy']);
-});
-
-
-
-

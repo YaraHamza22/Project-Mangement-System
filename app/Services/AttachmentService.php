@@ -3,43 +3,34 @@
 namespace App\Services;
 
 use App\Models\Attachment;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class AttachmentService
 {
-    /**
-     * Create a new class instance.
-     */
-    public function uploadAttachment(array $data, Model $attachable): ?Attachment
+    public function upload(UploadedFile $file, string $disk = 'public'): Attachment
     {
-        try {
-            return DB::transaction(function () use ($data, $attachable) {
-                $path = $data['file']->store('attachments');
-
-                return $attachable->attachments()->create([
-                    'user_id' => $data['user_id'],
-                    'file_path' => $path,
-                    'file_name' => $data['file']->getClientOriginalName(),
-                    'mime_type' => $data['file']->getMimeType(),
-                ]);
-            });
-        } catch (\Throwable $e) {
-            report($e);
-            return null;
-        }
+        return DB::transaction(function () use ($file, $disk) {
+            $path = $file->store('attachments', $disk);
+            return Attachment::create([
+                'path'           => $path,
+                'disk'           => $disk,
+                'file_name'      => $file->getClientOriginalName(),
+                'mime_type'      => $file->getClientMimeType(),
+                'file_size'      => $file->getSize(),
+                'attachable_id'  => request('attachable_id'),
+                'attachable_type'=> request('attachable_type'),
+            ]);
+        });
     }
 
-    public function deleteAttachment(Attachment $attachment): bool
+    public function delete(Attachment $attachment): bool
     {
-        try {
-            Storage::delete($attachment->file_path);
+        return DB::transaction(function () use ($attachment) {
+            Storage::disk($attachment->disk)->delete($attachment->path);
             return $attachment->delete();
-        } catch (\Throwable $e) {
-            report($e);
-            return false;
-        }
+        });
     }
 }

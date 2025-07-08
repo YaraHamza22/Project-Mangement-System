@@ -2,87 +2,67 @@
 
 namespace App\Services;
 
-use App\Events\TaskAssigned;
-use App\Mail\TaskAssignedMail;
-use App\Models\Project;
 use App\Models\Task;
-use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
+use App\Models\Project;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Collection;
 
 class TaskService
 {
-   public function getTasksForProject(Project $project)
+    /**
+     * Get tasks for a specific project.
+     */
+    public function getTasksForProject(Project $project): Collection
     {
-        return $project->tasks()->with('assignedUser')->get();
+        return Task::where('project_id', $project->id)
+                   ->with(['assignee', 'comments', 'attachments'])
+                   ->get();
     }
 
-    public function createTask(array $data): ?Task
+    /**
+     * Find a task by ID with relationships.
+     */
+    public function getTaskById(int $id): ?Task
     {
-        try {
-            return DB::transaction(function () use ($data) {
-                $task = Task::create($data);
-                if (!empty($task->assigned_to)) {
-                event(new TaskAssigned($task));}
-
-                $this->invalidateCompletedTasksCache($task->project_id);
-
-                return $task;
-            });
-        } catch (\Throwable $e) {
-            report($e);
-            return null;
-        }
+        return Task::with(['project', 'assignee', 'comments', 'attachments'])->find($id);
     }
 
-
-    public function updateTask(Task $task, array $data): bool
+    /**
+     * Create a new task.
+     */
+    public function createTask(array $data): Task
     {
-        try {
-            $task->fill($data);
-            $changed = $task->isDirty('status');
-
-            if ($task->isDirty()) {
-                $task->save();
-                if ($changed && isset($data['status']) && $data['status'] === 'completed') {
-                    $this->invalidateCompletedTasksCache($task->project_id);
-                }
-                return true;
-            }
-            return false;
-        } catch (\Throwable $e) {
-            report($e);
-            return false;
-        }
-    }
-    public function deleteTask(Task $task): bool
-    {
-        try {
-            $deleted = $task->delete();
-
-            if ($deleted) {
-                $this->invalidateCompletedTasksCache($task->project_id);
-            }
-
-            return $deleted;
-        } catch (\Throwable $e) {
-            report($e);
-            return false;
-        }
-    }
-    public function getCompletedTasksCount(int $projectId): int
-    {
-        return Cache::remember("project_{$projectId}_completed_tasks_count", now()->addMinutes(10), function () use ($projectId) {
-            return Task::where('project_id', $projectId)
-                ->where('status', 'completed')
-                ->count();
+        return DB::transaction(function () use ($data) {
+            return Task::create($data);
         });
     }
 
-    protected function invalidateCompletedTasksCache(int $projectId): void
+    /**
+     * Update an existing task.
+     */
+    public function updateTask(Task $task, array $data): bool
     {
-        Cache::forget("project_{$projectId}_completed_tasks_count");
+        return DB::transaction(function () use ($task, $data) {
+            $task->update($data);
+            return true;
+        });
+    }
+
+    /**
+     * Delete a task.
+     */
+    public function deleteTask(Task $task): bool
+    {
+        return DB::transaction(fn () => $task->delete());
+    }
+
+    /**
+     * Get count of completed tasks for a project.
+     */
+    public function getCompletedTasksCount(int $projectId): int
+    {
+        return Task::where('project_id', $projectId)
+                   ->where('status', 'completed') // Adjust status value if using enums
+                   ->count();
     }
 }

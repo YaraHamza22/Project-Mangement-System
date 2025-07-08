@@ -2,21 +2,20 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\Comment;
+use App\Services\CommentService;
+use Illuminate\Http\JsonResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCommentRequest;
 use App\Http\Requests\UpdateCommentRequest;
-use App\Models\Comment;
-use App\Models\Project;
-use App\Models\Task;
-use App\Services\CommentService;
+use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class CommentController extends Controller
 {
     use AuthorizesRequests;
-      protected CommentService $commentService;
+
+    protected CommentService $commentService;
 
     public function __construct(CommentService $commentService)
     {
@@ -32,48 +31,64 @@ class CommentController extends Controller
             $validated['commentable_id']
         );
 
-        if (!$commentable) {
-            return response()->json(['message' => 'Target not found'], 404);
+        if (! $commentable) {
+            return response()->json([
+                'message' => 'Target not found.'
+            ], Response::HTTP_NOT_FOUND);
         }
 
-        $comment = $this->commentService->createComment($validated, $commentable);
+        $validated['commentable_type'] = get_class($commentable);
+        $validated['commentable_id'] = $commentable->id;
 
-        if (!$comment) {
-            return response()->json(['message' => 'Failed to create comment'], 500);
+        $comment = $this->commentService->create($validated);
+
+        if (! $comment) {
+            return response()->json([
+                'message' => 'Failed to create comment.'
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        return response()->json(['message' => 'Comment created', 'data' => $comment], 201);
+        return response()->json([
+            'message' => 'Comment created successfully.',
+            'data' => $comment
+        ], Response::HTTP_CREATED);
     }
 
     public function update(UpdateCommentRequest $request, Comment $comment): JsonResponse
     {
         $this->authorize('update', $comment);
 
-        $updated = $this->commentService->updateComment($comment, $request->validated());
+        $updated = $this->commentService->update($comment, $request->validated());
 
         return $updated
-            ? response()->json(['message' => 'Comment updated successfully'])
-            : response()->json(['message' => 'No changes made'], 200);
+            ? response()->json(['message' => 'Comment updated successfully.'], Response::HTTP_OK)
+            : response()->json(['message' => 'No changes made.'], Response::HTTP_OK);
     }
 
     public function destroy(Comment $comment): JsonResponse
     {
         $this->authorize('delete', $comment);
 
-        $deleted = $this->commentService->deleteComment($comment);
+        $deleted = $this->commentService->delete($comment);
 
         return $deleted
-            ? response()->json(['message' => 'Comment deleted successfully.'])
-            : response()->json(['message' => 'Failed to delete comment.'], 500);
+            ? response()->json(['message' => 'Comment deleted successfully.'], Response::HTTP_OK)
+            : response()->json(['message' => 'Failed to delete comment.'], Response::HTTP_INTERNAL_SERVER_ERROR);
     }
 
-    private function resolveCommentable(string $type, int $id): Task|Project|null
+    /**
+     * Resolve the polymorphic relationship.
+     */
+    protected function resolveCommentable(string $type, int $id): ?object
     {
-        return match ($type) {
-            'task' => Task::find($id),
-            'project' => Project::find($id),
-            default => null,
-        };
-    }
+        $map = [
+            'project' => \App\Models\Project::class,
+            'task' => \App\Models\Task::class,
+            // Add other mappings here if needed
+        ];
 
+        $modelClass = $map[strtolower($type)] ?? null;
+
+        return $modelClass ? $modelClass::find($id) : null;
+    }
 }

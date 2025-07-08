@@ -3,51 +3,34 @@
 namespace App\Services;
 
 use App\Models\Comment;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Collection;
 
 class CommentService
 {
-    /**
-     * Create a new class instance.
-     */
-    public function createComment(array $data, Model $commentable): ?Comment
+    public function listFor($model): Collection
     {
-        try {
-            return DB::transaction(function () use ($data, $commentable) {
-                return $commentable->comments()->create($data);
-            });
-        } catch (\Throwable $e) {
-            report($e);
-            return null;
-        }
+        return $model->comments()->with('attachments')->get();
     }
 
-    public function updateComment(Comment $comment, array $data): bool
+    public function create(array $data): Comment
     {
-        try {
-            $comment->fill($data);
-
-            if ($comment->isDirty()) {
-                $comment->save();
-                return true;
-            }
-
-            return false;
-        } catch (\Throwable $e) {
-            report($e);
-            return false;
-        }
+        return DB::transaction(function () use ($data) {
+            return Comment::create($data);
+        });
     }
 
-    public function deleteComment(Comment $comment): bool
+    public function update(Comment $comment, array $data): Comment
     {
-        try {
-            return $comment->delete();
-        } catch (\Throwable $e) {
-            report($e);
-            return false;
-        }
+        return DB::transaction(function () use ($comment, $data) {
+            $comment->update($data);
+            return $comment;
+        });
+    }
+
+    public function delete(Comment $comment): bool
+    {
+        return DB::transaction(fn() => $comment->delete());
     }
 }
+    

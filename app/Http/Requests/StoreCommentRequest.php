@@ -1,32 +1,29 @@
 <?php
-
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use App\Models\Task;
-use App\Models\Project;
 
 class StoreCommentRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
-        return true;
+        return auth()->user()?->can('add comments') ?? false;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
-            'content' => ['required','string','max:1000'],
-            'commentable_id' => ['required','integer'],
-            'commentable_type' => ['required','string','in:task,project']
+            'commentable_id'   => 'required|integer',
+            'commentable_type' => 'required|string|in:project,task',
+            'content'          => 'required|string|max:1000',
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'content.required' => 'Comment content is required.',
+            'commentable_type.in' => 'Comment must be on a project or a task.',
         ];
     }
 }

@@ -6,26 +6,26 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StoreAttachementRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
-        return true;
+        return auth()->check();
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
-             'file' => ['required', 'file', 'mimes:jpg,png,pdf,docx','max:2048'],
-            'attachable_id' => ['required', 'integer'],
-            'attachable_type' => ['required', 'string', 'in:App\Models\Project,App\Models\Task,App\Models\Comment'],
+            'attachable_id'   => 'required|integer',
+            'attachable_type' => 'required|string|in:project,task,comment',
+            'file'            => 'required|file|mimes:jpg,jpeg,png,pdf,doc,docx|max:5120',
+        ];
+    }
 
+    public function messages(): array
+    {
+        return [
+            'file.required' => 'A file must be attached.',
+            'file.mimes'    => 'Only JPG, PNG, PDF, DOC, and DOCX are allowed.',
+            'file.max'      => 'File size must not exceed 5MB.',
         ];
     }
 }

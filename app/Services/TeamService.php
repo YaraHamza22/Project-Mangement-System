@@ -1,71 +1,70 @@
 <?php
 
 namespace App\Services;
+
 use App\Models\Team;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\Cache;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Collection;
 
 class TeamService
 {
     /**
-     * Create a new class instance.
+     * Get all teams with relationships.
      */
-       public function getAllTeams()
+    public function getAllTeams(): Collection
     {
-        return Team::all();
+        return Team::with(['owner', 'members', 'projects'])->get();
     }
 
-    public function getTopActiveTeams()
+    /**
+     * Get team by ID.
+     */
+    public function getTeamById(int $id): ?Team
     {
-        return Cache::remember('top_active_teams', now()->addMinutes(10), function () {
-            return Team::withCount('projects')
-                ->orderByDesc('projects_count')
-                ->take(5)
-                ->get();
+        return Team::with(['owner', 'members', 'projects'])->find($id);
+    }
+
+    /**
+     * Create a team with owner and optional members.
+     */
+    public function createTeam(array $data, User $owner): Team
+    {
+        return DB::transaction(function () use ($data, $owner) {
+            $team = Team::create([
+                'name' => $data['name'],
+                'owner_id' => $owner->id,
+            ]);
+
+            if (!empty($data['members'])) {
+                $team->members()->sync($data['members']);
+            }
+
+            return $team;
         });
     }
 
-    public function createTeam(array $data): ?Team
-    {
-        try {
-            return DB::transaction(function () use ($data) {
-                $team = Team::create($data);
-                Cache::forget('top_active_teams');
-                return $team;
-            });
-        } catch (\Throwable $e) {
-            report($e);
-            return null;
-        }
-    }
-
+    /**
+     * Update an existing team.
+     */
     public function updateTeam(Team $team, array $data): bool
     {
-        try {
-            $team->fill($data);
-            if ($team->isDirty()) {
-                $team->save();
-                Cache::forget('top_active_teams');
-                return true;
+        return DB::transaction(function () use ($team, $data) {
+            $team->update(['name' => $data['name']]);
+
+            if (array_key_exists('members', $data)) {
+                $team->members()->sync($data['members']);
             }
-            return false;
-        } catch (\Throwable $e) {
-            report($e);
-            return false;
-        }
+
+            return true;
+        });
     }
 
+    /**
+     * Delete a team.
+     */
     public function deleteTeam(Team $team): bool
     {
-        try {
-            $deleted = $team->delete();
-            Cache::forget('top_active_teams');
-            return $deleted;
-        } catch (\Throwable $e) {
-            report($e);
-            return false;
-        }
+        return DB::transaction(fn () => $team->delete());
     }
 }
-
